@@ -2,7 +2,7 @@
 
 Here is an explanation of what this thing does.
 
-`./randomfiles.sh {numfiles} {user@ip.ad.dre.ss}`
+`./fileiotest.sh {numfiles} {user@ip.ad.dre.ss}`
 
 [1] Checks to see if `vmtouch` is present. If not, it builds it.
 
