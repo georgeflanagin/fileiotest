@@ -35,7 +35,7 @@ find . -type f -name '*.iotest' -print0 | xargs -0 vmtouch -t
 
 
 # Stats.
-/usr/bin/time -v find . -type f -name '*.iotest' -print0 \
+find . -type f -name '*.iotest' -print0 \
     | sort -z \
     | xargs -0 pv -ra8tpe -i 1 \
     | ssh -T -o BatchMode=yes "$2" "cat > /dev/null"
