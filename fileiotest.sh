@@ -30,15 +30,15 @@ DEST="$2"
 
 # Load them into cache
 find . -type f -name '*.iotest' -print0 | xargs -0 vmtouch -t
-find . -type f -name '*.iotest' -print0 | xargs -0 vmtouch
+# find . -type f -name '*.iotest' -print0 | xargs -0 vmtouch
 
 
 
 # Stats.
-find . -type f -name '*.iotest' -print0 \
+/usr/bin/time -v find . -type f -name '*.iotest' -print0 \
     | sort -z \
     | xargs -0 pv -ra8tpe -i 1 \
     | ssh -T -o BatchMode=yes "$2" "cat > /dev/null"
 
 
-
+rm -fr *.iotest
