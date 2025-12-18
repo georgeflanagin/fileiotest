@@ -19,7 +19,14 @@ if ! command -v vmtouch >/dev/null 2>&1; then
   trap 'rm -rf "$tmpdir"' EXIT
   git clone --depth 1 https://github.com/hoytech/vmtouch.git "$tmpdir/vmtouch"
   make -C "$tmpdir/vmtouch"
-  sudo install -m 0755 "$tmpdir/vmtouch/vmtouch" /usr/local/bin/
+  if [ -w /usr/local/bin ]; then
+    sudo install -m 0755 "$tmpdir/vmtouch/vmtouch" /usr/local/bin/
+  else
+    mkdir -p "$HOME/.local"
+    export PATH="$PATH:$HOME/.local"
+    install -m 0755 "$tempdir/vmtouch/vmtouch" "$HOME/.local"
+  fi
+    
 fi
 
 # Check on pv, too.
