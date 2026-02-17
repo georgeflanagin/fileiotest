@@ -13,6 +13,62 @@ NUM="$1"
 DEST="$2"
 STATS_FILE="$3"
 
+
+ipfromhostname()
+{
+    if [ -z "$1" ]; then
+        cat<<EOF
+    usage: ipfromhostname somestring
+
+    somestring can be user@host, user@IP.AD.DR.ESS, host, or IP.AD.DR.ESS.
+
+    returns normalized IP address if it is available.
+EOF
+    return 1
+    fi
+
+    string="$1"
+    # Chop the user@ part.
+    host="${string##*@}"
+
+    # If the remaining part is an IP address, we are done.
+    if [[ "$host" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        echo "$host"
+        return 0
+    fi
+
+
+    # Check locally available info first. This will work if the
+    # current host has recently refreshed host info even if
+    # DNS is down.
+    ipaddress=$(getent ahostsv4 "$host" | head -1 | awk '{print $1}')
+    if [ ! -z "$ipaddress" ]; then
+        echo "$ipaddress"
+        return 0
+    fi
+
+    # Ask the question the usual way.
+    ipaddress=$(host -W 2 -t A "$host" | awk '{print $NF}')
+    if [ ! -z "$ipaddress" ]; then
+        echo "$ipaddress"
+        return 0
+    fi
+
+    # Ping might work if DNS is messed up
+    ipaddress=$(ping -n -c 1 -W 1 "$host" | head -2 | tail -1 | awk '{print $4}')
+    ipaddress=${ipaddress//:}
+    if [ ! -z "$ipaddress" ]; then
+        echo "$ipaddress"
+        return 0
+    fi
+
+    return 2
+}
+
+DEST=$(ipfromhostname "$DEST")
+
+SSH_OPTS="-o StrictHostKeyChecking=no -T"
+
 unlink $STATS_FILE 2>/dev/null || true
 
 # Check for vmtouch on this distro. It is not in
@@ -81,7 +137,7 @@ run_transfer()
     | xargs -0 -r cat \
     | pv -f -i 1 -F "bytes=%b rate=%r " \
         2> >(tr '\r' '\n' | awk 'NF{last=$0} END{print last}' > pv.last) \
-    | ssh -T "$DEST" "cat > /dev/null"
+    | ssh "$SSH_OPTS" "$DEST" "cat > /dev/null"
 }
 
 
@@ -92,7 +148,7 @@ run_transfer()
 echo "=== COLD-CACHE RUN ===" | tee -a $STATS_FILE
 
 # Attempt to empty the cache on the remote machine.
-ssh -T $DEST 'echo 3 | sudo tee /proc/sys/vm/drop_caches'
+ssh "$SSH_OPTS" $DEST 'echo 3 | sudo tee /proc/sys/vm/drop_caches'
 
 # Invoke the transfer.
 run_transfer
@@ -106,7 +162,7 @@ find . -type f -name '*.iotest' -print0 | xargs -0 vmtouch -t
 ###############################################################################
 ###############################################################################
 echo "=== 3 HOT-CACHE RUNS ===" | tee -a $STATS_FILE
-ssh -T $DEST 'echo 3 | sudo tee /proc/sys/vm/drop_caches'
+ssh "$SSH_OPTS" $DEST 'echo 3 | sudo tee /proc/sys/vm/drop_caches'
 run_transfer
 cat pv.last >> $STATS_FILE
 echo "Zzzleeping for 60 seconds."
@@ -129,13 +185,13 @@ run_transfer_and_write()
     | xargs -0 -r cat \
     | pv -f -i 1 -F "bytes=%b rate=%r " \
         2> >(tr '\r' '\n' | awk 'NF{last=$0} END{print last}' > pv.last) \
-    | ssh -T "$DEST" "cat > ./this_file_is_junk"
+    | ssh "$SSH_OPTS" "$DEST" "cat > ./this_file_is_junk"
 }
 
 
 echo "=== TRUE WRITE ===" | tee -a $STATS_FILE
 find . -type f -name '*.iotest' -print0 | xargs -0 vmtouch -e
-ssh -T $DEST 'echo 3 | sudo tee /proc/sys/vm/drop_caches'
+ssh "$SSH_OPTS" $DEST 'echo 3 | sudo tee /proc/sys/vm/drop_caches'
 run_transfer_and_write
 cat pv.last >> $STATS_FILE
 nstat -a | egrep -i 'TcpRetransSegs|TCPTimeouts|OutRsts' >> $STATS_FILE
