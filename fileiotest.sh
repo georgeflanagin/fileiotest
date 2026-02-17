@@ -65,9 +65,11 @@ EOF
     return 2
 }
 
-DEST=$(ipfromhostname "$DEST")
+HOST=$(ipfromhostname "$DEST")
+USER=${DEST%@*}
+DEST="$USER"@"$HOST"
 
-SSH_OPTS="-o StrictHostKeyChecking=no -T"
+SSH_OPTS="-T"
 
 unlink $STATS_FILE 2>/dev/null || true
 
